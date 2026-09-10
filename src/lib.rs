@@ -65,6 +65,7 @@ mod traceroute;
 pub mod paris;
 pub mod analytics;
 pub mod tls;
+pub mod bidirectional;
 
 pub use error::Error;
 pub use types::{
@@ -92,6 +93,12 @@ pub use analytics::{
 pub use tls::{
     TlsProbeResult, TlsProbeOptions, TlsTimingBreakdown, TlsVersion,
     probe_tls, compare_tls,
+};
+
+// Bidirectional exports
+pub use bidirectional::{
+    BidirectionalResult, BidirectionalOptions, BidirectionalServer,
+    DirectionStats, probe_bidirectional, DEFAULT_PORT as BIDIRECTIONAL_PORT,
 };
 
 /// Result type alias for multiprobe operations

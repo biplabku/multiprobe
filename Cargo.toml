@@ -1,6 +1,6 @@
 [package]
 name = "multiprobe"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Biplab Das <bdas@paloaltonetworks.com>"]
 description = "Enterprise-grade multi-protocol network probing with Paris Traceroute, path analytics, MTU discovery, and TLS analysis"

@@ -8,7 +8,7 @@ Enterprise-grade multi-protocol network probing library for Rust with Paris Trac
 
 ## Why multiprobe?
 
-- **Paris Traceroute** - First pure-Rust implementation of ECMP-aware traceroute
+- **Paris Traceroute** - ECMP-aware path tracing integrated into a unified multi-protocol probing library
 - **Comprehensive Analytics** - Jitter, MTU, bufferbloat, reordering in one crate
 - **Protocol Differential Score** - Novel metric for cross-protocol path analysis
 - **Production Ready** - 100+ tests, zero unsafe in public API
@@ -38,6 +38,7 @@ Enterprise-grade multi-protocol network probing library for Rust with Paris Trac
 | Path MTU | Binary search MTU discovery |
 | Bufferbloat | Latency degradation under load (A-F grading) |
 | Packet Reordering | Out-of-order delivery detection |
+| **Bidirectional** | Forward/reverse path asymmetry detection (NEW) |
 
 ### Classification
 | Feature | Description |
@@ -50,7 +51,7 @@ Enterprise-grade multi-protocol network probing library for Rust with Paris Trac
 
 ```toml
 [dependencies]
-multiprobe = "0.1"
+multiprobe = "0.2"
 ```
 
 ## Quick Start
@@ -231,6 +232,37 @@ println!("Under Load: {:.2}ms", bloat.loaded_latency.as_secs_f64() * 1000.0);
 println!("Bloat Factor: {:.2}x", bloat.bloat_factor);
 println!("Grade: {}", bloat.grade);  // A-F rating
 println!("Detected: {}", bloat.detected);
+```
+
+## Bidirectional Path Probing
+
+Detect reverse-path asymmetry where packets take different ECMP paths in each direction.
+
+**Server side** (run on the remote host):
+```rust
+use multiprobe::BidirectionalServer;
+
+let server = BidirectionalServer::bind("0.0.0.0:33435").await?;
+server.run().await?;
+```
+
+**Client side:**
+```rust
+use multiprobe::Probe;
+
+let result = Probe::bidirectional("server.example.com")
+    .port(33435)
+    .probe_count(20)
+    .send().await?;
+
+println!("Forward path:  {:.2}ms avg", result.forward.mean_ms);
+println!("Reverse path:  {:.2}ms avg", result.reverse.mean_ms);
+println!("Round-trip:    {:.2}ms avg", result.round_trip.mean_ms);
+println!("Asymmetry:     {:.2} ({})", result.asymmetry_score, result.interpretation());
+
+if result.asymmetric {
+    println!("WARNING: Significant path asymmetry detected!");
+}
 ```
 
 ## Path Classification

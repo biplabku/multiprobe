@@ -8,8 +8,9 @@ use crate::traceroute::{TracerouteOptions, TracerouteResult};
 use crate::paris::{ParisOptions, ParisTraceResult, ParisMode, FlowId};
 use crate::analytics::{LatencyStats, PmtudOptions, PmtudResult, BufferbloatOptions, BufferbloatResult};
 use crate::tls::{TlsProbeOptions, TlsProbeResult};
+use crate::bidirectional::{BidirectionalOptions, BidirectionalResult};
 use crate::types::{MultiProbeResult, ProbeOptions, ProbeResult, Protocol};
-use crate::{icmp, tcp, traceroute, udp, paris, analytics, tls};
+use crate::{icmp, tcp, traceroute, udp, paris, analytics, tls, bidirectional};
 
 /// Entry point for creating probes
 ///
@@ -103,6 +104,17 @@ impl Probe {
         BufferbloatBuilder {
             target: target.to_string(),
             options: BufferbloatOptions::default(),
+        }
+    }
+
+    /// Create a bidirectional probe builder for detecting path asymmetry
+    ///
+    /// Requires a multiprobe server running on the target.
+    /// Start a server with: `BidirectionalServer::bind("0.0.0.0:33435").await?.run().await`
+    pub fn bidirectional(target: &str) -> BidirectionalBuilder {
+        BidirectionalBuilder {
+            target: target.to_string(),
+            options: BidirectionalOptions::default(),
         }
     }
 }
@@ -304,6 +316,43 @@ impl BufferbloatBuilder {
     /// Execute bufferbloat detection
     pub async fn send(self) -> crate::Result<BufferbloatResult> {
         analytics::detect_bufferbloat(&self.target, &self.options).await
+    }
+}
+
+/// Bidirectional probe builder for detecting path asymmetry
+pub struct BidirectionalBuilder {
+    target: String,
+    options: BidirectionalOptions,
+}
+
+impl BidirectionalBuilder {
+    /// Set port (default: 33435)
+    pub fn port(mut self, port: u16) -> Self {
+        self.options.port = port;
+        self
+    }
+
+    /// Set number of probes to send
+    pub fn probe_count(mut self, count: u32) -> Self {
+        self.options.probe_count = count;
+        self
+    }
+
+    /// Set interval between probes
+    pub fn interval(mut self, interval: Duration) -> Self {
+        self.options.interval = interval;
+        self
+    }
+
+    /// Set timeout per probe
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.options.timeout = timeout;
+        self
+    }
+
+    /// Execute bidirectional probing
+    pub async fn send(self) -> crate::Result<BidirectionalResult> {
+        bidirectional::probe_bidirectional(&self.target, &self.options).await
     }
 }
 
