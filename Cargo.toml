@@ -1,6 +1,6 @@
 [package]
 name = "multiprobe"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Biplab Das <bdas@paloaltonetworks.com>"]
 description = "Enterprise-grade multi-protocol network probing with Paris Traceroute, path analytics, MTU discovery, and TLS analysis"
@@ -11,7 +11,7 @@ categories = ["network-programming", "asynchronous"]
 readme = "README.md"
 
 [dependencies]
-tokio = { version = "1", features = ["net", "time", "rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["net", "time", "rt-multi-thread", "macros", "io-std", "signal"] }
 socket2 = { version = "0.5", features = ["all"] }
 thiserror = "1"
 tracing = "0.1"
@@ -23,10 +23,18 @@ hickory-resolver = "0.24"
 # For low-level socket operations
 libc = "0.2"
 
+# CLI dependencies (optional, enabled by default for binary)
+clap = { version = "4", features = ["derive"], optional = true }
+
 [dev-dependencies]
 tokio-test = "0.4"
 tracing-subscriber = "0.3"
 
 [features]
-default = ["async"]
-async = []
+default = ["cli"]
+cli = ["dep:clap"]
+
+[[bin]]
+name = "multiprobe"
+path = "src/bin/multiprobe.rs"
+required-features = ["cli"]

@@ -49,12 +49,42 @@ Enterprise-grade multi-protocol network probing library for Rust with Paris Trac
 
 ## Installation
 
+**As a library:**
 ```toml
 [dependencies]
-multiprobe = "0.2"
+multiprobe = "0.3"
 ```
 
-## Quick Start
+**As a CLI tool:**
+```bash
+cargo install multiprobe
+```
+
+## CLI Usage
+
+```bash
+# TCP/TLS probes
+multiprobe tcp example.com 443
+multiprobe tls example.com
+
+# Path discovery (requires elevated privileges)
+multiprobe traceroute example.com
+multiprobe paris example.com --detect-lb
+
+# Latency analysis
+multiprobe latency example.com 443 --samples 50
+
+# Multi-protocol analysis
+multiprobe multi example.com --tcp 80,443 --udp 53
+
+# Bidirectional path analysis
+multiprobe server                          # On remote host
+multiprobe bidirectional server.example.com  # On client
+```
+
+See `multiprobe --help` for all commands and options.
+
+## Quick Start (Library)
 
 ```rust
 use multiprobe::Probe;
