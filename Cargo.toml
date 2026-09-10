@@ -1,6 +1,6 @@
 [package]
 name = "multiprobe"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 authors = ["Biplab Das <bdas@paloaltonetworks.com>"]
 description = "Enterprise-grade multi-protocol network probing with Paris Traceroute, path analytics, MTU discovery, and TLS analysis"
@@ -9,6 +9,7 @@ repository = "https://github.com/biplabku/multiprobe"
 keywords = ["network", "traceroute", "mtu", "jitter", "tls"]
 categories = ["network-programming", "asynchronous"]
 readme = "README.md"
+exclude = ["LAUNCH_POSTS.md", "GITHUB_ISSUES.md", "METRICS_TRACKING.md", "*.log"]
 
 [dependencies]
 tokio = { version = "1", features = ["net", "time", "rt-multi-thread", "macros", "io-std", "signal"] }
