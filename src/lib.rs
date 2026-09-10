@@ -66,6 +66,7 @@ pub mod paris;
 pub mod analytics;
 pub mod tls;
 pub mod bidirectional;
+pub mod divergence;
 
 pub use error::Error;
 pub use types::{
@@ -99,6 +100,12 @@ pub use tls::{
 pub use bidirectional::{
     BidirectionalResult, BidirectionalOptions, BidirectionalServer,
     DirectionStats, probe_bidirectional, DEFAULT_PORT as BIDIRECTIONAL_PORT,
+};
+
+// Divergence exports
+pub use divergence::{
+    DivergenceResult, DivergenceOptions, DivergenceHop, DivergenceProtocol,
+    HopStatus, ProtocolHopResult, analyze_divergence,
 };
 
 /// Result type alias for multiprobe operations

@@ -1,9 +1,9 @@
 [package]
 name = "multiprobe"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 authors = ["Biplab Das <bdas@paloaltonetworks.com>"]
-description = "Enterprise-grade multi-protocol network probing with Paris Traceroute, path analytics, MTU discovery, and TLS analysis"
+description = "Multi-protocol network probing with Protocol Divergence Localization, Paris Traceroute, path analytics, and TLS analysis"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/biplabku/multiprobe"
 keywords = ["network", "traceroute", "mtu", "jitter", "tls"]

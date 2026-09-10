@@ -8,6 +8,7 @@ use clap::{Parser, Subcommand};
 use multiprobe::{
     Probe, Classifier, BidirectionalServer,
     paris::ParisMode,
+    divergence::{analyze_divergence, DivergenceOptions, DivergenceProtocol},
 };
 
 #[derive(Parser)]
@@ -185,6 +186,27 @@ enum Commands {
         /// Address to bind (default 0.0.0.0:33435)
         #[arg(short, long, default_value = "0.0.0.0:33435")]
         bind: String,
+    },
+
+    /// Protocol Divergence Localization - find where protocols behave differently (requires elevated privileges)
+    Divergence {
+        /// Target hostname or IP
+        target: String,
+        /// Maximum hops
+        #[arg(short, long, default_value = "30")]
+        max_hops: u8,
+        /// Timeout per hop in seconds
+        #[arg(short, long, default_value = "2")]
+        timeout: u64,
+        /// TCP port to probe
+        #[arg(long, default_value = "80")]
+        tcp_port: u16,
+        /// UDP port to probe
+        #[arg(long, default_value = "33434")]
+        udp_port: u16,
+        /// Protocols to use (comma-separated: icmp,tcp,udp)
+        #[arg(long, default_value = "icmp,tcp,udp")]
+        protocols: String,
     },
 }
 
@@ -473,6 +495,88 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
             }
 
             println!("Server stopped. Handled {} probes.", server.probes_handled());
+        }
+
+        Commands::Divergence { target, max_hops, timeout, tcp_port, udp_port, protocols } => {
+            let mut protos = Vec::new();
+            for p in protocols.to_lowercase().split(',') {
+                match p.trim() {
+                    "icmp" => protos.push(DivergenceProtocol::Icmp),
+                    "tcp" => protos.push(DivergenceProtocol::Tcp),
+                    "udp" => protos.push(DivergenceProtocol::Udp),
+                    _ => eprintln!("Warning: Unknown protocol '{}', ignoring", p),
+                }
+            }
+
+            if protos.is_empty() {
+                eprintln!("Error: No valid protocols specified");
+                std::process::exit(1);
+            }
+
+            let options = DivergenceOptions {
+                max_hops: *max_hops,
+                timeout_per_hop: Duration::from_secs(*timeout),
+                protocols: protos,
+                tcp_port: *tcp_port,
+                udp_port: *udp_port,
+            };
+
+            let result = analyze_divergence(target, &options).await?;
+
+            println!("Protocol Divergence Analysis: {} ({})", target, result.target_ip);
+            println!("Protocols: {:?}", result.protocols_used.iter().map(|p| p.to_string()).collect::<Vec<_>>());
+            println!();
+
+            // Print header
+            print!("{:>3} ", "Hop");
+            for proto in &result.protocols_used {
+                print!("{:^20} ", proto.to_string());
+            }
+            println!("{:>10}", "Status");
+            println!("{}", "-".repeat(3 + 21 * result.protocols_used.len() + 10));
+
+            // Print each hop
+            for hop in &result.hops {
+                print!("{:>3} ", hop.ttl);
+
+                for proto in &result.protocols_used {
+                    let status = hop.results.get(proto)
+                        .map(|s| format!("{}", s))
+                        .unwrap_or_else(|| "?".to_string());
+                    print!("{:^20} ", status);
+                }
+
+                let status_sym = if hop.has_divergence {
+                    format!("⚠ DIVERGE")
+                } else if hop.results.values().all(|s| s.is_success()) {
+                    "✓".to_string()
+                } else if hop.results.values().all(|s| !s.is_success()) {
+                    "*".to_string()
+                } else {
+                    "?".to_string()
+                };
+                println!("{:>10}", status_sym);
+            }
+
+            println!();
+            println!("Summary:");
+            println!("  {}", result.summary());
+
+            if let Some(hop_num) = result.first_divergence_hop {
+                println!();
+                println!("  First divergence at hop {}", hop_num);
+                if let Some(hop) = result.divergence_point() {
+                    if let Some(desc) = &hop.divergence_description {
+                        println!("  Reason: {}", desc);
+                    }
+                }
+            }
+
+            println!();
+            println!("  Path divergence score: {:.2}", result.path_divergence_score);
+            println!("  Protocols reached destination: {:?}",
+                result.protocols_reached.iter().map(|p| p.to_string()).collect::<Vec<_>>());
+            println!("  Total time: {:.2}s", result.total_time.as_secs_f64());
         }
     }
 

@@ -4,11 +4,12 @@
 [![Documentation](https://docs.rs/multiprobe/badge.svg)](https://docs.rs/multiprobe)
 [![License](https://img.shields.io/crates/l/multiprobe.svg)](LICENSE)
 
-Enterprise-grade multi-protocol network probing library for Rust with Paris Traceroute, path analytics, MTU discovery, bufferbloat detection, and TLS analysis.
+Enterprise-grade multi-protocol network probing library for Rust with **Protocol Divergence Localization**, Paris Traceroute, path analytics, MTU discovery, bufferbloat detection, and TLS analysis.
 
 ## Why multiprobe?
 
 - **Paris Traceroute** - ECMP-aware path tracing integrated into a unified multi-protocol probing library
+- **Protocol Divergence Localization** - Find WHERE in the path protocols behave differently (NEW)
 - **Comprehensive Analytics** - Jitter, MTU, bufferbloat, reordering in one crate
 - **Protocol Differential Score** - Novel metric for cross-protocol path analysis
 - **Production Ready** - 100+ tests, zero unsafe in public API
@@ -30,6 +31,7 @@ Enterprise-grade multi-protocol network probing library for Rust with Paris Trac
 | Paris Traceroute | ECMP-aware traceroute (maintains flow consistency) |
 | Multi-path Discovery | Find all paths through load balancers |
 | Load Balancing Detection | Identify per-flow vs per-packet ECMP |
+| **Protocol Divergence** | Find which hop causes protocol-specific failures (NEW) |
 
 ### Path Analytics
 | Metric | Description |
@@ -52,7 +54,7 @@ Enterprise-grade multi-protocol network probing library for Rust with Paris Trac
 **As a library:**
 ```toml
 [dependencies]
-multiprobe = "0.3"
+multiprobe = "0.4"
 ```
 
 **As a CLI tool:**
@@ -80,6 +82,10 @@ multiprobe multi example.com --tcp 80,443 --udp 53
 # Bidirectional path analysis
 multiprobe server                          # On remote host
 multiprobe bidirectional server.example.com  # On client
+
+# Protocol Divergence Localization - find where protocols fail differently
+multiprobe divergence example.com
+multiprobe divergence example.com --protocols icmp,tcp
 ```
 
 See `multiprobe --help` for all commands and options.
@@ -295,6 +301,67 @@ if result.asymmetric {
 }
 ```
 
+## Protocol Divergence Localization
+
+Find WHERE in the network path different protocols start behaving differently. This is useful for diagnosing firewall rules, middlebox interference, or protocol-specific filtering.
+
+```rust
+use multiprobe::{analyze_divergence, DivergenceOptions, DivergenceProtocol};
+
+let options = DivergenceOptions {
+    max_hops: 30,
+    timeout_per_hop: Duration::from_secs(2),
+    protocols: vec![
+        DivergenceProtocol::Icmp,
+        DivergenceProtocol::Tcp,
+        DivergenceProtocol::Udp,
+    ],
+    tcp_port: 80,
+    udp_port: 33434,
+};
+
+let result = analyze_divergence("example.com", &options).await?;
+
+// Check for divergence
+if let Some(hop) = result.first_divergence_hop {
+    println!("Protocol divergence at hop {}", hop);
+    if let Some(div_hop) = result.divergence_point() {
+        println!("  Description: {:?}", div_hop.divergence_description);
+    }
+} else {
+    println!("No divergence - all protocols behave consistently");
+}
+
+// Per-hop analysis
+for hop in &result.hops {
+    print!("Hop {:2}: ", hop.ttl);
+    for (proto, status) in &hop.results {
+        print!("{}: {} | ", proto, status);
+    }
+    if hop.has_divergence {
+        println!("⚠ DIVERGENCE");
+    } else {
+        println!();
+    }
+}
+
+// Summary metrics
+println!("Path divergence score: {:.2}", result.path_divergence_score);
+println!("Protocols that reached destination: {:?}", result.protocols_reached);
+```
+
+Example output:
+```
+Protocol Divergence Analysis: blocked-host.example.com
+Hop  1:  ICMP: 192.168.1.1 (1.23ms) | TCP: 192.168.1.1 (1.45ms) | UDP: 192.168.1.1 (1.12ms)
+Hop  2:  ICMP: 10.0.0.1 (5.67ms)    | TCP: 10.0.0.1 (5.89ms)    | UDP: 10.0.0.1 (5.34ms)
+Hop  3:  ICMP: 172.16.0.1 (8.90ms)  | TCP: * (timeout)          | UDP: * (timeout)  ⚠ DIVERGENCE
+
+Protocol divergence at hop 3
+  Description: ICMP succeeded, TCP/UDP failed
+  Likely cause: Firewall or ACL blocking TCP/UDP at 172.16.0.1
+```
+
 ## Path Classification
 
 | Classification | Description |
@@ -364,6 +431,7 @@ match trace.load_balancing {
 | ICMP ping | CAP_NET_RAW | root | Admin |
 | Traceroute | CAP_NET_RAW | root | Admin |
 | Paris Traceroute | CAP_NET_RAW | root | Admin |
+| Protocol Divergence | CAP_NET_RAW | root | Admin |
 | MTU Discovery | CAP_NET_RAW | root | Admin |
 
 ```bash
@@ -396,6 +464,7 @@ Probe::bufferbloat(target)    // Bufferbloat detection
 ```rust
 multiprobe::paris_traceroute(target, &options)  // Paris trace
 multiprobe::discover_paths(target, flows, &options)  // Multi-path
+multiprobe::analyze_divergence(target, &options)  // Protocol divergence
 multiprobe::measure_latency(target, port, samples, interval)
 multiprobe::discover_path_mtu(target, &options)
 multiprobe::detect_bufferbloat(target, &options)
