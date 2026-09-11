@@ -9,6 +9,7 @@ use multiprobe::{
     Probe, Classifier, BidirectionalServer,
     paris::ParisMode,
     divergence::{analyze_divergence, DivergenceOptions, DivergenceProtocol},
+    bgp::{correlate_divergence, CorrelationOptions},
 };
 
 #[derive(Parser)]
@@ -190,6 +191,27 @@ enum Commands {
 
     /// Protocol Divergence Localization - find where protocols behave differently (requires elevated privileges)
     Divergence {
+        /// Target hostname or IP
+        target: String,
+        /// Maximum hops
+        #[arg(short, long, default_value = "30")]
+        max_hops: u8,
+        /// Timeout per hop in seconds
+        #[arg(short, long, default_value = "2")]
+        timeout: u64,
+        /// TCP port to probe
+        #[arg(long, default_value = "80")]
+        tcp_port: u16,
+        /// UDP port to probe
+        #[arg(long, default_value = "33434")]
+        udp_port: u16,
+        /// Protocols to use (comma-separated: icmp,tcp,udp)
+        #[arg(long, default_value = "icmp,tcp,udp")]
+        protocols: String,
+    },
+
+    /// BGP-correlated Protocol Divergence - correlate divergence with AS boundaries (requires elevated privileges)
+    BgpDiverge {
         /// Target hostname or IP
         target: String,
         /// Maximum hops
@@ -577,6 +599,88 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
             println!("  Protocols reached destination: {:?}",
                 result.protocols_reached.iter().map(|p| p.to_string()).collect::<Vec<_>>());
             println!("  Total time: {:.2}s", result.total_time.as_secs_f64());
+        }
+
+        Commands::BgpDiverge { target, max_hops, timeout, tcp_port, udp_port, protocols } => {
+            let mut protos = Vec::new();
+            for p in protocols.to_lowercase().split(',') {
+                match p.trim() {
+                    "icmp" => protos.push(DivergenceProtocol::Icmp),
+                    "tcp" => protos.push(DivergenceProtocol::Tcp),
+                    "udp" => protos.push(DivergenceProtocol::Udp),
+                    _ => eprintln!("Warning: Unknown protocol '{}', ignoring", p),
+                }
+            }
+
+            if protos.is_empty() {
+                eprintln!("Error: No valid protocols specified");
+                std::process::exit(1);
+            }
+
+            let options = CorrelationOptions {
+                divergence: DivergenceOptions {
+                    max_hops: *max_hops,
+                    timeout_per_hop: Duration::from_secs(*timeout),
+                    protocols: protos,
+                    tcp_port: *tcp_port,
+                    udp_port: *udp_port,
+                },
+                lookup_as_names: true,
+                cache_asn: true,
+            };
+
+            let result = correlate_divergence(target, &options).await?;
+
+            println!("BGP-Correlated Protocol Divergence: {} ({})", target, result.target_ip);
+            println!();
+
+            // Print AS path
+            println!("AS Path: {}", result.as_path_str());
+            println!("AS Transitions: {}", result.as_transitions);
+            println!();
+
+            // Print header
+            println!("{:>3} {:^15} {:^8} {:^25} {:>10}", "Hop", "IP", "ASN", "AS Name", "Status");
+            println!("{}", "-".repeat(70));
+
+            // Print each hop
+            for hop in &result.hops {
+                let ip = hop.addr.map(|a| a.to_string()).unwrap_or_else(|| "*".to_string());
+                let asn = hop.asn().map(|a| format!("AS{}", a)).unwrap_or_else(|| "-".to_string());
+                let as_name = hop.asn_info.as_ref()
+                    .and_then(|i| i.as_name.as_ref())
+                    .map(|s| if s.len() > 22 { format!("{}...", &s[..22]) } else { s.clone() })
+                    .unwrap_or_else(|| "-".to_string());
+
+                let status = if hop.has_divergence {
+                    if hop.is_as_boundary {
+                        "⚠ AS-BOUND"
+                    } else {
+                        "⚠ INTRA-AS"
+                    }
+                } else if hop.is_as_boundary {
+                    "→ boundary"
+                } else {
+                    "✓"
+                };
+
+                println!("{:>3} {:^15} {:^8} {:^25} {:>10}", hop.ttl, ip, asn, as_name, status);
+            }
+
+            println!();
+            println!("AS-Boundary Divergence Score (ABDS):");
+            println!("  Total divergent hops: {}", result.abds.total_divergent);
+            println!("  At AS boundary:       {}", result.abds.at_boundary);
+            println!("  Within AS (intra-AS): {}", result.abds.intra_as);
+            println!("  Unknown location:     {}", result.abds.unknown);
+            println!("  ABDS Score:           {:.2}", result.abds.score);
+            println!("  Interpretation:       {}", result.abds.interpretation);
+
+            println!();
+            println!("Primary Cause: {}", result.primary_cause);
+            println!();
+            println!("Summary: {}", result.summary());
+            println!("Total time: {:.2}s", result.total_time.as_secs_f64());
         }
     }
 

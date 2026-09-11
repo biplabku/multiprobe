@@ -62,6 +62,10 @@ pub enum Error {
         host: String,
         port: u16,
     },
+
+    /// DNS lookup error (for ASN lookups)
+    #[error("DNS lookup error: {0}")]
+    Dns(String),
 }
 
 impl Error {

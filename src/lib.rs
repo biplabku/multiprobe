@@ -67,6 +67,7 @@ pub mod analytics;
 pub mod tls;
 pub mod bidirectional;
 pub mod divergence;
+pub mod bgp;
 
 pub use error::Error;
 pub use types::{
@@ -106,6 +107,14 @@ pub use bidirectional::{
 pub use divergence::{
     DivergenceResult, DivergenceOptions, DivergenceHop, DivergenceProtocol,
     HopStatus, ProtocolHopResult, analyze_divergence,
+};
+
+// BGP correlation exports
+pub use bgp::{
+    AsnLookup, AsnInfo, AsnLookupError,
+    BgpCorrelatedResult, BgpCorrelatedHop, CorrelationOptions,
+    DivergenceCause, AsBoundaryDivergenceScore,
+    correlate_divergence,
 };
 
 /// Result type alias for multiprobe operations
