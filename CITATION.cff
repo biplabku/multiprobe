@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: "If you use multiprobe in your research, please cite it using the metadata below."
+type: software
+title: "multiprobe: Multi-protocol network probing with BGP-correlated divergence analysis"
+abstract: >
+  multiprobe is a Rust library for multi-protocol network probing combining
+  ICMP, UDP, and TCP traceroute with BGP-correlated path analysis.
+  It introduces the AS-Boundary Divergence Score (ABDS), a novel metric that
+  quantifies routing asymmetry at autonomous system boundaries, and Protocol
+  Divergence Localization (PDL) to pinpoint where protocol-specific paths diverge.
+  Implements Paris Traceroute for flow-consistent path measurement.
+authors:
+  - family-names: "Das"
+    given-names: "Biplab Kumar"
+    email: "biplabku@gmail.com"
+    orcid: "https://orcid.org/0009-0001-9406-2615"
+    affiliation: "Palo Alto Networks"
+version: "0.5.0"
+date-released: "2026-09-10"
+url: "https://github.com/biplabku/multiprobe"
+repository-code: "https://github.com/biplabku/multiprobe"
+license: "MIT OR Apache-2.0"
+keywords:
+  - "network diagnostics"
+  - "traceroute"
+  - "BGP"
+  - "autonomous systems"
+  - "AS-Boundary Divergence Score"
+  - "ABDS"
+  - "protocol divergence"
+  - "Paris Traceroute"
+  - "network measurement"
+  - "Rust"
+references:
+  - type: article
+    title: "AS-Boundary Divergence Score: Quantifying Routing Asymmetry at Autonomous System Boundaries"
+    authors:
+      - family-names: "Das"
+        given-names: "Biplab Kumar"
+    journal: "IEEE Transactions on Network and Service Management"
+    year: 2026
+    notes: "Under review. Preprint: https://arxiv.org/abs/2609.14835"
