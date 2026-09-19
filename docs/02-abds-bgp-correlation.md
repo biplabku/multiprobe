@@ -73,7 +73,7 @@ BgpCorrelatedHop {
     ttl: u8,
     addr: Option<IpAddr>,
     asn_info: Option<AsnInfo>,     // ASN, name, country
-    protocol_results: HashMap<Protocol, HopStatus>,
+    protocol_results: HashMap<DivergenceProtocol, HopStatus>,
     has_divergence: bool,
     is_as_boundary: bool,
     prev_asn: Option<u32>,

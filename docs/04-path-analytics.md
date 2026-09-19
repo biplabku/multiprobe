@@ -2,57 +2,61 @@
 
 ## Latency measurement
 
-Measures RTT statistics with multiple samples:
+Measures RTT statistics with multiple samples. Requires a port (TCP connect):
 
 ```rust
-use multiprobe::{measure_latency, LatencyStats};
+use multiprobe::{measure_latency};
 use std::time::Duration;
 
-let stats = measure_latency("8.8.8.8", 10, Duration::from_secs(1)).await?;
+let stats = measure_latency("8.8.8.8", 53, 10, Duration::from_millis(100)).await?;
+//                           target   port  n   interval
 
-println!("Min:    {:.2}ms", stats.min_ms);
-println!("Mean:   {:.2}ms", stats.mean_ms);
-println!("Max:    {:.2}ms", stats.max_ms);
-println!("Stddev: {:.2}ms", stats.stddev_ms);
-println!("P50:    {:.2}ms", stats.p50_ms);
-println!("P95:    {:.2}ms", stats.p95_ms);
-println!("P99:    {:.2}ms", stats.p99_ms);
-println!("Loss:   {:.1}%", stats.loss_percent());
+println!("Min:    {:.2}ms", stats.min_rtt.as_secs_f64() * 1000.0);
+println!("Mean:   {:.2}ms", stats.mean_rtt.as_secs_f64() * 1000.0);
+println!("Max:    {:.2}ms", stats.max_rtt.as_secs_f64() * 1000.0);
+println!("Stddev: {:.2}ms", stats.std_dev.as_secs_f64() * 1000.0);
+println!("P95:    {:.2}ms", stats.p95_rtt.as_secs_f64() * 1000.0);
+println!("P99:    {:.2}ms", stats.p99_rtt.as_secs_f64() * 1000.0);
+println!("Loss:   {:.1}%", stats.loss_rate * 100.0);
+println!("Sent:   {}", stats.sample_count);
+println!("OK:     {}", stats.success_count);
 ```
 
 ## Path MTU Discovery
 
 Discovers the maximum packet size that can traverse the path without
-fragmentation (RFC 4821):
+fragmentation:
 
 ```rust
-use multiprobe::{discover_path_mtu, PmtudOptions};
+use multiprobe::discover_path_mtu;
 
 let result = discover_path_mtu("8.8.8.8", &Default::default()).await?;
 
-println!("Path MTU: {} bytes", result.mtu);
-println!("Standard: {} ({})", result.is_standard_mtu(), result.mtu_description());
+println!("Path MTU: {} bytes", result.path_mtu);
+println!("DF honored: {}", result.df_honored);
+println!("Success: {}", result.success);
 ```
 
-Common MTU values:
-- 1500 — Ethernet (standard internet path)
-- 1480 — PPPoE (some ISPs)
-- 1460 — TCP MSS after IP/TCP headers
-- 576 — Minimum required by IPv4
+Common MTU values: 1500 (Ethernet), 1480 (PPPoE), 576 (IPv4 minimum).
 
 ## Bufferbloat detection
 
-Detects if there is excessive buffering on the path (a sign of poor QoS):
+Detects if there is excessive buffering on the path:
 
 ```rust
 use multiprobe::{detect_bufferbloat, BufferbloatGrade};
+use std::time::Duration;
 
 let result = detect_bufferbloat("8.8.8.8", &Default::default()).await?;
 
-println!("Grade: {} ({:?})", result.grade, result.grade);
-println!("Baseline RTT: {:.2}ms", result.baseline_ms);
-println!("Loaded RTT:   {:.2}ms", result.loaded_ms);
-println!("Inflation:    {:.1}%", result.inflation_percent);
+let baseline_ms = result.baseline_latency.as_secs_f64() * 1000.0;
+let loaded_ms   = result.loaded_latency.as_secs_f64() * 1000.0;
+
+println!("Grade:    {:?}", result.grade);
+println!("Baseline: {:.2}ms", baseline_ms);
+println!("Loaded:   {:.2}ms", loaded_ms);
+println!("Factor:   {:.2}x", result.bloat_factor);
+println!("Detected: {}", result.detected);
 
 match result.grade {
     BufferbloatGrade::A => println!("Excellent — minimal buffering"),
@@ -65,17 +69,19 @@ match result.grade {
 
 ## Reordering analysis
 
-Detects whether packets arrive out of order (indicates asymmetric routing
-or parallel paths merging at destination):
+Detects whether packets arrive out of order:
 
 ```rust
 use multiprobe::analyze_reordering;
 
-let result = analyze_reordering("8.8.8.8", 50, &Default::default()).await?;
+let result = analyze_reordering("8.8.8.8", 53, 50).await?;
+//                               target   port  packets
 
-println!("Reordering: {}", result.reordering_detected);
-println!("Reorder rate: {:.2}%", result.reorder_percent);
-println!("Out-of-order: {} of {}", result.out_of_order, result.total_packets);
+println!("Has reordering: {}", result.has_reordering());
+println!("Reorder rate:   {:.2}%", result.reorder_rate * 100.0);
+println!("Out of order:   {} of {}", result.out_of_order, result.packets_sent);
+println!("Max extent:     {} hops", result.max_reorder_extent);
+println!("Duplicates:     {}", result.duplicates);
 ```
 
 ## Protocol Differential Score
@@ -94,9 +100,9 @@ let multi = Probe::multi("target.com")
     .await?;
 
 let score = Classifier::differential_score(&multi.results);
-println!("Consistency: {:.4}", score.consistency);
-println!("Protocol bias: {:.4}", score.protocol_bias);
-println!("Behavior: {}", multi.classify());
+println!("Consistency:    {:.4}", score.consistency);
+println!("Protocol bias:  {:.4}", score.protocol_bias);
+println!("Behavior:       {}", multi.classify());
 ```
 
 A `consistency` near 1.0 means all protocols behave the same.

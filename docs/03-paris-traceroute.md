@@ -22,9 +22,9 @@ let result = paris_traceroute("8.8.8.8", &Default::default()).await?;
 
 for hop in &result.hops {
     let ip = hop.addr.map(|a| a.to_string()).unwrap_or("*".into());
-    let rtt = hop.rtt_ms.unwrap_or(0.0);
-    let asn = hop.asn.map(|a| format!(" AS{}", a)).unwrap_or_default();
-    println!("  {:>2}  {:<18}  {:.2}ms{}", hop.ttl, ip, rtt, asn);
+    let rtt_ms = hop.rtt.as_secs_f64() * 1000.0;
+    let responded = if hop.responded { "OK" } else { "*" };
+    println!("  {:>2}  {:<18}  {:.2}ms  {}", hop.ttl, ip, rtt_ms, responded);
 }
 
 println!("Reached destination: {}", result.reached_destination);
@@ -57,7 +57,7 @@ let opts = ParisOptions {
     timeout_per_hop: Duration::from_secs(2),
     probes_per_hop: 3,
     mode: ParisMode::Udp,  // Udp (default), Tcp, or Icmp
-    flow_id: Some(FlowId::udp(12345, 33435)), // fix the flow
+    flow_id: FlowId::udp(12345, 33435), // fix the flow
     detect_load_balancing: true,
     ..Default::default()
 };
@@ -77,10 +77,12 @@ let opts = ParisOptions {
 ParisHop {
     ttl: u8,
     addr: Option<IpAddr>,
-    rtt_ms: Option<f64>,
-    asn: Option<u32>,
+    rtt: Duration,          // round-trip time
+    responded: bool,        // false if no response (timeout)
+    icmp_type: Option<u8>,
+    icmp_code: Option<u8>,
+    flow_id: FlowId,
     mpls_labels: Vec<MplsLabel>,  // MPLS label stack if present
-    from_different_path: bool,    // true if this hop is on an alternate path
 }
 ```
 
@@ -88,5 +90,4 @@ ParisHop {
 
 ```bash
 sudo cargo run --example paris_traceroute 8.8.8.8
-sudo cargo run --example paris_traceroute 8.8.8.8 -- --mode tcp --flows 3
 ```
