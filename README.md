@@ -54,8 +54,12 @@ Enterprise-grade multi-protocol network probing library for Rust with **Protocol
 **As a library:**
 ```toml
 [dependencies]
-multiprobe = "0.4"
+multiprobe = "0.5"
+tokio = { version = "1", features = ["full"] }
 ```
+
+**Note:** IPv4 only — IPv6 support is not yet implemented. Most features
+require `CAP_NET_RAW` or `sudo` for ICMP raw sockets.
 
 **As a CLI tool:**
 ```bash
@@ -473,8 +477,42 @@ multiprobe::probe_tls(target, &options)
 multiprobe::compare_tls(target1, target2, &options)
 ```
 
+## How-to guides
+
+| Guide | Topic |
+|-------|-------|
+| [Getting Started](docs/01-getting-started.md) | Installation, privileges, running examples |
+| [ABDS & BGP Correlation](docs/02-abds-bgp-correlation.md) | The ABDS score, DivergenceCause classification, ASN lookup |
+| [Paris Traceroute](docs/03-paris-traceroute.md) | ECMP-aware tracing, multi-path discovery |
+| [Path Analytics](docs/04-path-analytics.md) | Latency stats, MTU discovery, bufferbloat, reordering |
+| [TLS & Bidirectional](docs/05-tls-and-bidirectional.md) | TLS timing breakdown, forward/reverse asymmetry |
+
+## Examples
+
+```bash
+# Basic TCP/UDP probes
+cargo run --example basic_probes google.com
+
+# Paris Traceroute with ECMP detection (requires sudo)
+sudo cargo run --example paris_traceroute 8.8.8.8
+
+# BGP correlation + ABDS score (paper's core contribution, requires sudo)
+sudo cargo run --example bgp_correlation 8.8.8.8
+
+# Latency analytics
+sudo cargo run --example latency_analysis 8.8.8.8
+
+# TLS handshake breakdown
+cargo run --example tls_analysis google.com
+
+# Bidirectional path asymmetry
+cargo run --example bidirectional -- server 0.0.0.0:33435  # on server
+cargo run --example bidirectional <server-ip>              # on client
+```
+
 ## References
 
+- **ABDS Paper**: Das, "AS-Boundary Divergence Score: Quantifying Routing Asymmetry at Autonomous System Boundaries", arXiv:2609.14835, IEEE TNSM (under review)
 - **Paris Traceroute**: Augustin et al., "Avoiding traceroute anomalies with Paris traceroute" (IMC 2006)
 - **RFC 3550**: RTP jitter calculation
 - **RFC 1191**: Path MTU Discovery

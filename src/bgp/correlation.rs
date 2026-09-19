@@ -201,9 +201,10 @@ impl BgpCorrelatedResult {
             return "No protocol divergence detected".to_string();
         }
 
+        let hop = self.first_divergence_hop.unwrap_or(0);
         format!(
             "Divergence at hop {}: {} (ABDS: {:.2}, {})",
-            self.first_divergence_hop.unwrap(),
+            hop,
             self.primary_cause,
             self.abds.score,
             self.abds.interpretation

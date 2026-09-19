@@ -6,6 +6,7 @@ use std::net::{IpAddr, Ipv4Addr};
 use multiprobe::bgp::AsnLookup;
 
 #[tokio::test]
+#[ignore = "requires network (Team Cymru DNS)"]
 async fn test_asn_lookup_major_providers() {
     let lookup = AsnLookup::new().await.expect("Failed to create ASN lookup");
 
@@ -34,6 +35,7 @@ async fn test_asn_lookup_major_providers() {
 }
 
 #[tokio::test]
+#[ignore = "requires network (Team Cymru DNS)"]
 async fn test_asn_cache_effectiveness() {
     let lookup = AsnLookup::new().await.expect("Failed to create ASN lookup");
     let ip = IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8));
@@ -53,6 +55,7 @@ async fn test_asn_cache_effectiveness() {
 }
 
 #[tokio::test]
+#[ignore = "requires network (Team Cymru DNS)"]
 async fn test_cloud_provider_detection() {
     let lookup = AsnLookup::new().await.expect("Failed to create ASN lookup");
 
@@ -73,6 +76,7 @@ async fn test_cloud_provider_detection() {
 }
 
 #[tokio::test]
+#[ignore = "requires network (Team Cymru DNS)"]
 async fn test_transit_provider_detection() {
     let lookup = AsnLookup::new().await.expect("Failed to create ASN lookup");
 
@@ -85,6 +89,7 @@ async fn test_transit_provider_detection() {
 }
 
 #[tokio::test]
+#[ignore = "requires network (Team Cymru DNS)"]
 async fn test_batch_lookup() {
     let lookup = AsnLookup::new().await.expect("Failed to create ASN lookup");
 

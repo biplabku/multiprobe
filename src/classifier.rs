@@ -30,17 +30,13 @@ impl ProtocolDifferentialScore {
         let tcp_success_rate = Self::success_rate(results, |p| matches!(p, Protocol::Tcp(_)));
         let udp_success_rate = Self::success_rate(results, |p| matches!(p, Protocol::Udp(_)));
 
-        let icmp_tcp_diff = match icmp_success {
-            Some(icmp) if tcp_success_rate.is_some() => {
-                (icmp - tcp_success_rate.unwrap()).abs()
-            }
+        let icmp_tcp_diff = match (icmp_success, tcp_success_rate) {
+            (Some(icmp), Some(tcp)) => (icmp - tcp).abs(),
             _ => 0.0,
         };
 
-        let icmp_udp_diff = match icmp_success {
-            Some(icmp) if udp_success_rate.is_some() => {
-                (icmp - udp_success_rate.unwrap()).abs()
-            }
+        let icmp_udp_diff = match (icmp_success, udp_success_rate) {
+            (Some(icmp), Some(udp)) => (icmp - udp).abs(),
             _ => 0.0,
         };
 
@@ -233,11 +229,10 @@ impl Classifier {
             .collect();
 
         if ttls.len() >= 2 {
-            let min_ttl = *ttls.iter().min().unwrap();
-            let max_ttl = *ttls.iter().max().unwrap();
-
-            if max_ttl - min_ttl > 5 {
-                return PathClassification::NatDetected;
+            if let (Some(&min_ttl), Some(&max_ttl)) = (ttls.iter().min(), ttls.iter().max()) {
+                if max_ttl - min_ttl > 5 {
+                    return PathClassification::NatDetected;
+                }
             }
         }
 

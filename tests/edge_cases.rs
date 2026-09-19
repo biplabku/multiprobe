@@ -264,6 +264,7 @@ async fn test_udp_localhost() {
 }
 
 #[tokio::test]
+#[ignore = "requires network"]
 async fn test_udp_real_dns() {
     let result = Probe::udp("8.8.8.8", 53)
         .timeout(Duration::from_secs(2))
@@ -313,6 +314,7 @@ async fn test_differential_score_empty() {
 // ============================================================================
 
 #[tokio::test]
+#[ignore = "requires CAP_NET_RAW or root"]
 async fn test_traceroute_localhost() {
     let result = Probe::traceroute("127.0.0.1")
         .max_hops(5)
@@ -324,6 +326,7 @@ async fn test_traceroute_localhost() {
 }
 
 #[tokio::test]
+#[ignore = "requires network and CAP_NET_RAW"]
 async fn test_traceroute_max_hops_one() {
     let result = Probe::traceroute("8.8.8.8")
         .max_hops(1)
@@ -366,6 +369,7 @@ async fn test_timing_breakdown_dns_skip() {
 }
 
 #[tokio::test]
+#[ignore = "requires network"]
 async fn test_timing_breakdown_with_dns() {
     let result = Probe::tcp("google.com", 443)
         .timeout(Duration::from_secs(5))
@@ -402,6 +406,7 @@ async fn test_concurrent_probes_same_target() {
 }
 
 #[tokio::test]
+#[ignore = "requires network"]
 async fn test_concurrent_probes_different_targets() {
     let targets = ["127.0.0.1", "8.8.8.8", "1.1.1.1"];
     let futures: Vec<_> = targets.iter().map(|target| {
@@ -524,6 +529,7 @@ async fn test_traceroute_result_methods() {
 // ============================================================================
 
 #[tokio::test]
+#[ignore = "requires CAP_NET_RAW or root"]
 async fn test_paris_localhost() {
     let result = Probe::paris("127.0.0.1")
         .max_hops(5)
@@ -546,6 +552,7 @@ async fn test_paris_invalid_hostname() {
 }
 
 #[tokio::test]
+#[ignore = "requires CAP_NET_RAW or root"]
 async fn test_paris_max_hops_one() {
     let result = Probe::paris("127.0.0.1")
         .max_hops(1)
@@ -559,6 +566,7 @@ async fn test_paris_max_hops_one() {
 }
 
 #[tokio::test]
+#[ignore = "requires CAP_NET_RAW or root"]
 async fn test_paris_mode_icmp() {
     use multiprobe::ParisMode;
 
@@ -589,6 +597,7 @@ async fn test_paris_flow_id() {
 }
 
 #[tokio::test]
+#[ignore = "requires CAP_NET_RAW or root"]
 async fn test_paris_with_load_balancing_detection() {
     let result = Probe::paris("127.0.0.1")
         .max_hops(3)
