@@ -982,3 +982,37 @@ async fn test_latency_real_target() {
         }
     }
 }
+
+// ── Unprivileged UDP mode ─────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn unprivileged_mode_returns_correctly_on_this_platform() {
+    use multiprobe::{paris_traceroute, ParisOptions, ParisMode};
+    use std::time::Duration;
+
+    let opts = ParisOptions {
+        mode: ParisMode::UdpUnprivileged,
+        max_hops: 2,
+        timeout_per_hop: Duration::from_millis(500),
+        ..Default::default()
+    };
+
+    let result = paris_traceroute("127.0.0.1", &opts).await;
+
+    #[cfg(target_os = "linux")]
+    {
+        // On Linux: must not panic, may succeed or timeout (loopback TTL)
+        assert!(result.is_ok(), "UdpUnprivileged must not return Err on Linux");
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        // On non-Linux: must return UnsupportedPlatform error
+        assert!(result.is_err(), "UdpUnprivileged must return Err on non-Linux");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("Linux") || err.contains("linux"),
+            "error message must mention Linux: {err}"
+        );
+    }
+}

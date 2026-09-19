@@ -21,10 +21,21 @@ Most features require elevated privileges (ICMP raw sockets):
 | UDP probe | No |
 | ICMP probe | **Yes** |
 | Traceroute | **Yes** (ICMP TTL) |
-| Paris traceroute | **Yes** |
+| Paris traceroute (UDP/ICMP/TCP) | **Yes** |
+| Paris traceroute (UdpUnprivileged) | **No — Linux only** |
 | BGP correlation | **Yes** (via traceroute) |
 | TLS probe | No |
 | Bidirectional | No (TCP-based) |
+
+### Running without root on Linux
+
+Use `ParisMode::UdpUnprivileged` — it uses `IP_RECVERR` + `MSG_ERRQUEUE`
+so ICMP TTL-exceeded replies arrive on the socket's error queue without
+needing a raw socket:
+
+```bash
+cargo run --example unprivileged_traceroute 8.8.8.8   # no sudo!
+```
 
 On Linux, grant CAP_NET_RAW without full root:
 ```bash

@@ -11,9 +11,10 @@
 //! https://doi.org/10.1145/1177080.1177100
 
 use std::collections::HashMap;
+use std::mem;
+use std::mem::MaybeUninit;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::{Duration, Instant};
-use std::mem::MaybeUninit;
 
 use socket2::{Domain, Protocol, Socket, Type};
 
@@ -74,12 +75,28 @@ impl Default for FlowId {
 /// Paris Traceroute probe mode
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParisMode {
-    /// UDP probes with constant flow ID
+    /// UDP probes with constant flow ID.
+    ///
+    /// Sends UDP packets and listens for ICMP TTL-exceeded replies on a raw
+    /// socket. **Requires `CAP_NET_RAW` or `sudo`.**
     Udp,
-    /// ICMP probes with constant identifier
+    /// ICMP echo probes with constant identifier.
+    ///
+    /// **Requires `CAP_NET_RAW` or `sudo`.**
     Icmp,
-    /// TCP SYN probes with constant flow ID
+    /// TCP SYN probes with constant flow ID.
+    ///
+    /// **Requires `CAP_NET_RAW` or `sudo`.**
     Tcp,
+    /// UDP probes using `IP_RECVERR` / `MSG_ERRQUEUE` for ICMP reply reception.
+    ///
+    /// **Does NOT require elevated privileges on Linux.** Uses only a standard
+    /// `SOCK_DGRAM` socket with the `IP_RECVERR` socket option, which causes
+    /// the kernel to queue ICMP errors (including TTL-exceeded) on the socket's
+    /// error queue where they can be read without a raw socket.
+    ///
+    /// **Linux only.** Returns `Error::UnsupportedPlatform` on macOS/Windows.
+    UdpUnprivileged,
 }
 
 impl Default for ParisMode {
@@ -281,6 +298,14 @@ pub async fn paris_traceroute(target: &str, options: &ParisOptions) -> crate::Re
         IpAddr::V6(_) => return Err(Error::InvalidTarget("IPv6 not yet supported".to_string())),
     };
 
+    // Validate mode platform compatibility before starting the loop.
+    #[cfg(not(target_os = "linux"))]
+    if matches!(options.mode, ParisMode::UdpUnprivileged) {
+        return Err(Error::InvalidTarget(
+            "UdpUnprivileged mode requires Linux (uses IP_RECVERR / MSG_ERRQUEUE)".to_string(),
+        ));
+    }
+
     let mut hops = Vec::new();
     let mut reached_destination = false;
 
@@ -289,6 +314,7 @@ pub async fn paris_traceroute(target: &str, options: &ParisOptions) -> crate::Re
             ParisMode::Udp => probe_udp_paris(target_ipv4, ttl, options).await,
             ParisMode::Icmp => probe_icmp_paris(target_ipv4, ttl, options).await,
             ParisMode::Tcp => probe_tcp_paris(target_ipv4, ttl, options).await,
+            ParisMode::UdpUnprivileged => probe_udp_unprivileged(target_ipv4, ttl, options).await,
         };
 
         if let Some(addr) = hop.addr {
@@ -518,6 +544,185 @@ fn probe_tcp_paris_sync(target: Ipv4Addr, ttl: u8, timeout: Duration, flow_id: F
         }
         Err(_) => Ok(ParisHop::timeout(ttl, flow_id, timeout)),
     }
+}
+
+// ── Unprivileged UDP traceroute (Linux only) ──────────────────────────────────
+//
+// Uses IP_RECVERR + MSG_ERRQUEUE so ICMP TTL-exceeded messages are delivered
+// to the sending socket's error queue without needing a raw socket.
+// This is the same mechanism used by `mtr --udp` in unprivileged mode.
+
+async fn probe_udp_unprivileged(target: Ipv4Addr, ttl: u8, options: &ParisOptions) -> ParisHop {
+    let timeout = options.timeout_per_hop;
+    let flow_id = options.flow_id;
+
+    let result = tokio::task::spawn_blocking(move || {
+        probe_udp_unprivileged_sync(target, ttl, timeout, flow_id)
+    }).await;
+
+    match result {
+        Ok(Ok(hop)) => hop,
+        Ok(Err(_)) => ParisHop::timeout(ttl, flow_id, timeout),
+        Err(_) => ParisHop::timeout(ttl, flow_id, timeout),
+    }
+}
+
+fn probe_udp_unprivileged_sync(
+    target: Ipv4Addr,
+    ttl: u8,
+    timeout: Duration,
+    flow_id: FlowId,
+) -> Result<ParisHop, Error> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (target, ttl, timeout, flow_id);
+        return Err(Error::InvalidTarget(
+            "UdpUnprivileged mode requires Linux (uses IP_RECVERR / MSG_ERRQUEUE)".to_string(),
+        ));
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        use std::mem;
+        use std::os::unix::io::AsRawFd;
+
+        // Standard UDP DGRAM socket — no raw socket, no special privileges needed.
+        let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))
+            .map_err(Error::SocketCreation)?;
+
+        // Enable IP_RECVERR: kernel queues ICMP errors (including TTL exceeded)
+        // on this socket's error queue instead of discarding them.
+        let enable: libc::c_int = 1;
+        let ret = unsafe {
+            libc::setsockopt(
+                socket.as_raw_fd(),
+                libc::IPPROTO_IP,
+                libc::IP_RECVERR,
+                &enable as *const _ as *const libc::c_void,
+                mem::size_of::<libc::c_int>() as libc::socklen_t,
+            )
+        };
+        if ret != 0 {
+            return Err(Error::SocketCreation(
+                std::io::Error::last_os_error(),
+            ));
+        }
+
+        let src_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), flow_id.src_port);
+        socket.set_reuse_address(true).map_err(Error::SocketCreation)?;
+        if socket.bind(&src_addr.into()).is_err() {
+            socket.bind(&SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0).into())
+                .map_err(Error::SocketCreation)?;
+        }
+
+        socket.set_ttl(ttl as u32).map_err(Error::SocketCreation)?;
+        socket.set_read_timeout(Some(timeout)).map_err(Error::SocketCreation)?;
+
+        let payload = build_paris_payload(ttl);
+        let dest = SocketAddr::new(IpAddr::V4(target), flow_id.dst_port);
+        let start = Instant::now();
+
+        socket.send_to(&payload, &dest.into()).map_err(Error::SocketCreation)?;
+
+        // Read ICMP error from the socket's error queue using MSG_ERRQUEUE.
+        // The kernel delivers the ICMP source address as the extended error's
+        // offender address in the ancillary data.
+        let mut iov_buf = [0u8; 512];
+        let mut ctrl_buf = [0u8; 512];
+
+        let mut iov = libc::iovec {
+            iov_base: iov_buf.as_mut_ptr() as *mut libc::c_void,
+            iov_len: iov_buf.len(),
+        };
+
+        let mut msg: libc::msghdr = unsafe { mem::zeroed() };
+        let mut src_storage: libc::sockaddr_storage = unsafe { mem::zeroed() };
+
+        msg.msg_name = &mut src_storage as *mut _ as *mut libc::c_void;
+        msg.msg_namelen = mem::size_of::<libc::sockaddr_storage>() as libc::socklen_t;
+        msg.msg_iov = &mut iov;
+        msg.msg_iovlen = 1;
+        msg.msg_control = ctrl_buf.as_mut_ptr() as *mut libc::c_void;
+        msg.msg_controllen = ctrl_buf.len();
+
+        // Poll until ICMP arrives or timeout expires.
+        let timeout_us = timeout.as_micros() as i64;
+        let mut elapsed_us: i64 = 0;
+        let poll_interval_us: i64 = 5_000; // 5ms poll
+
+        loop {
+            let ret = unsafe {
+                libc::recvmsg(socket.as_raw_fd(), &mut msg, libc::MSG_ERRQUEUE | libc::MSG_DONTWAIT)
+            };
+
+            if ret >= 0 {
+                let rtt = start.elapsed();
+                // Parse the source of the ICMP error from the offender address
+                // embedded in the sock_extended_err ancillary data.
+                let from_ip = parse_errqueue_addr(&src_storage);
+                let (icmp_type, icmp_code) = parse_icmp_type_code(&ctrl_buf, msg.msg_controllen);
+
+                if let Some(from) = from_ip {
+                    return Ok(ParisHop::success(ttl, from, rtt, icmp_type, icmp_code, flow_id));
+                }
+                return Ok(ParisHop::timeout(ttl, flow_id, timeout));
+            }
+
+            elapsed_us += poll_interval_us;
+            if elapsed_us >= timeout_us {
+                return Ok(ParisHop::timeout(ttl, flow_id, timeout));
+            }
+            std::thread::sleep(Duration::from_micros(poll_interval_us as u64));
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn parse_errqueue_addr(storage: &libc::sockaddr_storage) -> Option<IpAddr> {
+    // The sock_extended_err is appended to the ancillary data by IP_RECVERR.
+    // When the error is ICMP, `ee_origin = SO_EE_ORIGIN_ICMP` and the
+    // offender's address is in the sockaddr following the error struct.
+    // The msg_name field in msghdr contains the originating IP of the ICMP packet.
+    if storage.ss_family as i32 == libc::AF_INET {
+        let sin: &libc::sockaddr_in = unsafe {
+            &*(storage as *const _ as *const libc::sockaddr_in)
+        };
+        let octets = sin.sin_addr.s_addr.to_ne_bytes();
+        Some(IpAddr::V4(Ipv4Addr::new(octets[0], octets[1], octets[2], octets[3])))
+    } else {
+        None
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn parse_icmp_type_code(ctrl_buf: &[u8], ctrl_len: usize) -> (u8, u8) {
+    // Walk the ancillary data to find a SOL_IP / IP_RECVERR message.
+    // The sock_extended_err struct contains the ICMP type and code
+    // in the ee_type and ee_code fields.
+    let buf = &ctrl_buf[..ctrl_len.min(ctrl_buf.len())];
+    let mut offset = 0usize;
+
+    while offset + mem::size_of::<libc::cmsghdr>() <= buf.len() {
+        let cmsg: &libc::cmsghdr = unsafe {
+            &*(buf.as_ptr().add(offset) as *const libc::cmsghdr)
+        };
+
+        if cmsg.cmsg_level == libc::SOL_IP && cmsg.cmsg_type == libc::IP_RECVERR {
+            let data_offset = offset + mem::size_of::<libc::cmsghdr>();
+            if data_offset + mem::size_of::<libc::sock_extended_err>() <= buf.len() {
+                let ee: &libc::sock_extended_err = unsafe {
+                    &*(buf.as_ptr().add(data_offset) as *const libc::sock_extended_err)
+                };
+                return (ee.ee_type, ee.ee_code);
+            }
+        }
+
+        let next = unsafe { libc::CMSG_ALIGN(cmsg.cmsg_len) as usize };
+        if next == 0 { break; }
+        offset += next;
+    }
+
+    (11, 0) // Default: ICMP Time Exceeded / TTL exceeded in transit
 }
 
 /// Build Paris-style UDP payload

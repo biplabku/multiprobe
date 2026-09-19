@@ -1,6 +1,6 @@
 [package]
 name = "multiprobe"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2021"
 authors = ["Biplab Das <bdas@paloaltonetworks.com>"]
 description = "Multi-protocol network probing with BGP-correlated divergence analysis, AS-Boundary Divergence Score (ABDS), Protocol Divergence Localization, Paris Traceroute, and path analytics"
