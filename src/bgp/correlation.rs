@@ -46,16 +46,16 @@ impl std::fmt::Display for DivergenceCause {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::AsBoundaryPolicy { from_asn, to_asn } => {
-                write!(f, "AS boundary policy (AS{} -> AS{})", from_asn, to_asn)
+                write!(f, "AS boundary policy (AS{from_asn} -> AS{to_asn})")
             }
             Self::IntraAsPolicy { asn } => {
-                write!(f, "Intra-AS policy (within AS{})", asn)
+                write!(f, "Intra-AS policy (within AS{asn})")
             }
             Self::CloudProviderEdge { provider_name, .. } => {
-                write!(f, "Cloud provider edge ({})", provider_name)
+                write!(f, "Cloud provider edge ({provider_name})")
             }
             Self::TransitProvider { transit_asn } => {
-                write!(f, "Transit provider policy (AS{})", transit_asn)
+                write!(f, "Transit provider policy (AS{transit_asn})")
             }
             Self::Unknown => write!(f, "Unknown cause"),
         }
@@ -214,7 +214,7 @@ impl BgpCorrelatedResult {
     /// Get AS path as string
     pub fn as_path_str(&self) -> String {
         self.as_path.iter()
-            .map(|asn| format!("AS{}", asn))
+            .map(|asn| format!("AS{asn}"))
             .collect::<Vec<_>>()
             .join(" -> ")
     }
@@ -275,10 +275,7 @@ pub async fn correlate_divergence(
             .next();
 
         let asn_info = if let Some(ip) = addr {
-            match asn_lookup.lookup(ip).await {
-                Ok(info) => Some(info),
-                Err(_) => None,
-            }
+            asn_lookup.lookup(ip).await.ok()
         } else {
             None
         };

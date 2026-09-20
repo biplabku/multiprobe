@@ -390,8 +390,8 @@ fn build_pmtud_packet(payload_size: usize) -> Vec<u8> {
     packet[7] = 1;
 
     // Fill payload with pattern
-    for i in 8..packet.len() {
-        packet[i] = (i % 256) as u8;
+    for (i, item) in packet.iter_mut().enumerate().skip(8) {
+        *item = (i % 256) as u8;
     }
 
     // Compute checksum

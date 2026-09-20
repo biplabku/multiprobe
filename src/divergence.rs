@@ -77,7 +77,7 @@ impl std::fmt::Display for HopStatus {
                 write!(f, "{} ({:.2}ms)", addr, rtt.as_secs_f64() * 1000.0)
             }
             Self::Timeout => write!(f, "*"),
-            Self::Unreachable { code } => write!(f, "!H{}", code),
+            Self::Unreachable { code } => write!(f, "!H{code}"),
             Self::Filtered => write!(f, "!X"),
         }
     }
@@ -126,10 +126,8 @@ impl DivergenceHop {
         let total = results.len();
 
         // Agreement score based on success/fail consistency
-        let agreement = if total == 0 {
-            1.0
-        } else if success_count == total || success_count == 0 {
-            1.0 // All succeed or all fail = agreement
+        let agreement = if total == 0 || success_count == total || success_count == 0 {
+            1.0 // Edge case, all succeed, or all fail = agreement
         } else {
             success_count as f64 / total as f64 // Partial agreement
         };

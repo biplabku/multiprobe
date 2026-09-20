@@ -181,7 +181,7 @@ impl AsnLookup {
 
     /// Look up AS name from Team Cymru
     async fn lookup_as_name(&self, asn: u32) -> Result<String, AsnLookupError> {
-        let query_name = format!("AS{}.asn.cymru.com", asn);
+        let query_name = format!("AS{asn}.asn.cymru.com");
 
         let response = self.resolver.txt_lookup(&query_name).await
             .map_err(|e| AsnLookupError::DnsError(e.to_string()))?;

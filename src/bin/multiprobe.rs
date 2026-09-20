@@ -20,6 +20,11 @@ use multiprobe::{
 #[command(long_about = "Enterprise-grade network probing with Paris Traceroute, \
     path analytics, MTU discovery, bufferbloat detection, and bidirectional path analysis.")]
 struct Cli {
+    /// Output results as JSON instead of human-readable text.
+    /// Useful for piping to jq or scripting against results.
+    #[arg(long, global = true)]
+    json: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -245,6 +250,7 @@ async fn main() {
 }
 
 async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
+    let json_output = cli.json;
     match &cli.command {
         Commands::Tcp { target, port, timeout } => {
             let result = Probe::tcp(target, *port)
@@ -252,7 +258,7 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
                 .send()
                 .await?;
 
-            println!("TCP Probe: {}:{}", target, port);
+            println!("TCP Probe: {target}:{port}");
             println!("  Success:  {}", result.success);
             println!("  IP:       {}", result.resolved_ip);
             println!("  Latency:  {:.2}ms", result.timing.total_ms());
@@ -268,7 +274,7 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
                 .send()
                 .await?;
 
-            println!("UDP Probe: {}:{}", target, port);
+            println!("UDP Probe: {target}:{port}");
             println!("  Success:  {}", result.success);
             println!("  IP:       {}", result.resolved_ip);
             println!("  Latency:  {:.2}ms", result.timing.total_ms());
@@ -284,7 +290,7 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
 
             let result = probe.send().await?;
 
-            println!("ICMP Ping: {}", target);
+            println!("ICMP Ping: {target}");
             println!("  Success:  {}", result.success);
             println!("  IP:       {}", result.resolved_ip);
             println!("  Latency:  {:.2}ms", result.timing.total_ms());
@@ -301,11 +307,11 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
 
             let result = probe.send().await?;
 
-            println!("TLS Probe: {}:{}", target, port);
+            println!("TLS Probe: {target}:{port}");
             println!("  Success:    {}", result.success);
             println!("  Version:    {}", result.tls_version);
             if let Some(cipher) = &result.cipher_suite {
-                println!("  Cipher:     {}", cipher);
+                println!("  Cipher:     {cipher}");
             }
             println!("  HTTP/2:     {}", result.supports_http2());
             println!("  Modern TLS: {}", result.is_modern_tls());
@@ -350,7 +356,7 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
                 .await?;
 
             println!("Paris Traceroute: {} ({})", target, result.target_ip);
-            println!("Mode: {:?}", paris_mode);
+            println!("Mode: {paris_mode:?}");
             println!("Reached: {}", result.reached_destination);
             println!("Load Balancing: {}\n", result.load_balancing);
 
@@ -382,7 +388,7 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
 
             let result = probe.send().await?;
 
-            println!("Multi-Protocol Probe: {}", target);
+            println!("Multi-Protocol Probe: {target}");
             println!("Classification: {}\n", result.classify());
 
             for r in &result.results {
@@ -405,7 +411,7 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
                 .send()
                 .await?;
 
-            println!("Latency Statistics: {}:{}", target, port);
+            println!("Latency Statistics: {target}:{port}");
             println!("  Samples:  {}/{}", result.success_count, result.sample_count);
             println!("  Loss:     {:.1}%", result.loss_rate * 100.0);
             println!();
@@ -434,7 +440,7 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
                 .send()
                 .await?;
 
-            println!("Path MTU Discovery: {}", target);
+            println!("Path MTU Discovery: {target}");
             println!("  Path MTU:       {} bytes", result.path_mtu);
             println!("  DF Honored:     {}", result.df_honored);
             println!("  Frag Needed:    {} messages", result.frag_needed_count);
@@ -448,7 +454,7 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
                 .send()
                 .await?;
 
-            println!("Bufferbloat Detection: {}:{}", target, port);
+            println!("Bufferbloat Detection: {target}:{port}");
             println!("  Baseline:     {:.2}ms", result.baseline_latency.as_secs_f64() * 1000.0);
             println!("  Under Load:   {:.2}ms", result.loaded_latency.as_secs_f64() * 1000.0);
             println!("  Bloat Factor: {:.2}x", result.bloat_factor);
@@ -464,14 +470,14 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
                 .send()
                 .await?;
 
-            println!("Bidirectional Path Analysis: {}:{}", target, port);
+            println!("Bidirectional Path Analysis: {target}:{port}");
             println!();
             println!("Forward Path (client -> server):");
             println!("  Sent:     {}", result.forward.sent);
             println!("  Received: {}", result.forward.received);
             println!("  Loss:     {:.1}%", result.forward.loss_percent());
             let fwd_min = if result.forward.min_ms == f64::MAX { 0.0 } else { result.forward.min_ms };
-            println!("  Min:      {:.2}ms", fwd_min);
+            println!("  Min:      {fwd_min:.2}ms");
             println!("  Max:      {:.2}ms", result.forward.max_ms);
             println!("  Mean:     {:.2}ms", result.forward.mean_ms);
             println!("  Jitter:   {:.2}ms", result.forward.jitter_ms);
@@ -481,7 +487,7 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
             println!("  Received: {}", result.reverse.received);
             println!("  Loss:     {:.1}%", result.reverse.loss_percent());
             let rev_min = if result.reverse.min_ms == f64::MAX { 0.0 } else { result.reverse.min_ms };
-            println!("  Min:      {:.2}ms", rev_min);
+            println!("  Min:      {rev_min:.2}ms");
             println!("  Max:      {:.2}ms", result.reverse.max_ms);
             println!("  Mean:     {:.2}ms", result.reverse.mean_ms);
             println!("  Jitter:   {:.2}ms", result.reverse.jitter_ms);
@@ -499,12 +505,12 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
         }
 
         Commands::Server { bind } => {
-            println!("Starting multiprobe bidirectional server on {}...", bind);
+            println!("Starting multiprobe bidirectional server on {bind}...");
             println!("Press Ctrl+C to stop.\n");
 
             let server = BidirectionalServer::bind(bind).await?;
             let addr = server.local_addr()?;
-            println!("Listening on {}", addr);
+            println!("Listening on {addr}");
 
             tokio::select! {
                 result = server.run() => {
@@ -526,7 +532,7 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
                     "icmp" => protos.push(DivergenceProtocol::Icmp),
                     "tcp" => protos.push(DivergenceProtocol::Tcp),
                     "udp" => protos.push(DivergenceProtocol::Udp),
-                    _ => eprintln!("Warning: Unknown protocol '{}', ignoring", p),
+                    _ => eprintln!("Warning: Unknown protocol '{p}', ignoring"),
                 }
             }
 
@@ -545,60 +551,87 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
 
             let result = analyze_divergence(target, &options).await?;
 
-            println!("Protocol Divergence Analysis: {} ({})", target, result.target_ip);
-            println!("Protocols: {:?}", result.protocols_used.iter().map(|p| p.to_string()).collect::<Vec<_>>());
-            println!();
+            if json_output {
+                let hops_json: Vec<serde_json::Value> = result.hops.iter().map(|hop| {
+                    let protocols: serde_json::Map<String, serde_json::Value> = hop.results
+                        .iter()
+                        .map(|(proto, status)| (proto.to_string(), serde_json::Value::String(format!("{status}"))))
+                        .collect();
+                    serde_json::json!({
+                        "ttl": hop.ttl,
+                        "has_divergence": hop.has_divergence,
+                        "divergence_description": hop.divergence_description,
+                        "protocols": protocols,
+                    })
+                }).collect();
 
-            // Print header
-            print!("{:>3} ", "Hop");
-            for proto in &result.protocols_used {
-                print!("{:^20} ", proto.to_string());
-            }
-            println!("{:>10}", "Status");
-            println!("{}", "-".repeat(3 + 21 * result.protocols_used.len() + 10));
+                let json = serde_json::json!({
+                    "target": result.target,
+                    "target_ip": result.target_ip.to_string(),
+                    "protocols": result.protocols_used.iter().map(|p| p.to_string()).collect::<Vec<_>>(),
+                    "first_divergence_hop": result.first_divergence_hop,
+                    "path_divergence_score": result.path_divergence_score,
+                    "all_reached_destination": result.all_reached_destination,
+                    "protocols_reached": result.protocols_reached.iter().map(|p| p.to_string()).collect::<Vec<_>>(),
+                    "total_time_ms": result.total_time.as_secs_f64() * 1000.0,
+                    "hops": hops_json,
+                    "summary": result.summary(),
+                });
+                println!("{json}");
+            } else {
+                println!("Protocol Divergence Analysis: {} ({})", target, result.target_ip);
+                println!("Protocols: {:?}", result.protocols_used.iter().map(|p| p.to_string()).collect::<Vec<_>>());
+                println!();
 
-            // Print each hop
-            for hop in &result.hops {
-                print!("{:>3} ", hop.ttl);
-
+                print!("{:>3} ", "Hop");
                 for proto in &result.protocols_used {
-                    let status = hop.results.get(proto)
-                        .map(|s| format!("{}", s))
-                        .unwrap_or_else(|| "?".to_string());
-                    print!("{:^20} ", status);
+                    print!("{:^20} ", proto.to_string());
+                }
+                println!("{:>10}", "Status");
+                println!("{}", "-".repeat(3 + 21 * result.protocols_used.len() + 10));
+
+                for hop in &result.hops {
+                    print!("{:>3} ", hop.ttl);
+
+                    for proto in &result.protocols_used {
+                        let status = hop.results.get(proto)
+                            .map(|s| format!("{s}"))
+                            .unwrap_or_else(|| "?".to_string());
+                        print!("{status:^20} ");
+                    }
+
+                    let status_sym = if hop.has_divergence {
+                        "⚠ DIVERGE".to_string()
+                    } else if hop.results.values().all(|s| s.is_success()) {
+                        "✓".to_string()
+                    } else if hop.results.values().all(|s| !s.is_success()) {
+                        "*".to_string()
+                    } else {
+                        "?".to_string()
+                    };
+                    println!("{status_sym:>10}");
                 }
 
-                let status_sym = if hop.has_divergence {
-                    format!("⚠ DIVERGE")
-                } else if hop.results.values().all(|s| s.is_success()) {
-                    "✓".to_string()
-                } else if hop.results.values().all(|s| !s.is_success()) {
-                    "*".to_string()
-                } else {
-                    "?".to_string()
-                };
-                println!("{:>10}", status_sym);
-            }
-
-            println!();
-            println!("Summary:");
-            println!("  {}", result.summary());
-
-            if let Some(hop_num) = result.first_divergence_hop {
                 println!();
-                println!("  First divergence at hop {}", hop_num);
-                if let Some(hop) = result.divergence_point() {
-                    if let Some(desc) = &hop.divergence_description {
-                        println!("  Reason: {}", desc);
+                println!("Summary:");
+                println!("  {}", result.summary());
+
+                if let Some(hop_num) = result.first_divergence_hop {
+                    println!();
+                    println!("  First divergence at hop {hop_num}");
+                    if let Some(hop) = result.divergence_point() {
+                        if let Some(desc) = &hop.divergence_description {
+                            println!("  Reason: {desc}");
+                        }
                     }
                 }
-            }
 
-            println!();
-            println!("  Path divergence score: {:.2}", result.path_divergence_score);
-            println!("  Protocols reached destination: {:?}",
-                result.protocols_reached.iter().map(|p| p.to_string()).collect::<Vec<_>>());
-            println!("  Total time: {:.2}s", result.total_time.as_secs_f64());
+                println!();
+                println!("  Path divergence score: {:.2}", result.path_divergence_score);
+                println!("  Protocols reached destination: {:?}",
+                    result.protocols_reached.iter().map(|p| p.to_string()).collect::<Vec<_>>());
+                println!("  Total time: {:.2}s", result.total_time.as_secs_f64());
+            }
         }
 
         Commands::BgpDiverge { target, max_hops, timeout, tcp_port, udp_port, protocols } => {
@@ -608,7 +641,7 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
                     "icmp" => protos.push(DivergenceProtocol::Icmp),
                     "tcp" => protos.push(DivergenceProtocol::Tcp),
                     "udp" => protos.push(DivergenceProtocol::Udp),
-                    _ => eprintln!("Warning: Unknown protocol '{}', ignoring", p),
+                    _ => eprintln!("Warning: Unknown protocol '{p}', ignoring"),
                 }
             }
 
@@ -631,56 +664,90 @@ async fn run_command(cli: &Cli) -> Result<(), multiprobe::Error> {
 
             let result = correlate_divergence(target, &options).await?;
 
-            println!("BGP-Correlated Protocol Divergence: {} ({})", target, result.target_ip);
-            println!();
+            if json_output {
+                let hops_json: Vec<serde_json::Value> = result.hops.iter().map(|hop| {
+                    let protocols: serde_json::Map<String, serde_json::Value> = hop.protocol_results
+                        .iter()
+                        .map(|(proto, status)| (proto.to_string(), serde_json::Value::String(format!("{status}"))))
+                        .collect();
+                    serde_json::json!({
+                        "ttl": hop.ttl,
+                        "ip": hop.addr.map(|a| a.to_string()),
+                        "asn": hop.asn(),
+                        "as_name": hop.asn_info.as_ref().and_then(|i| i.as_name.as_deref()),
+                        "country": hop.asn_info.as_ref().and_then(|i| i.country.as_deref()),
+                        "is_as_boundary": hop.is_as_boundary,
+                        "has_divergence": hop.has_divergence,
+                        "divergence_cause": hop.divergence_cause.as_ref().map(|c| c.to_string()),
+                        "protocols": protocols,
+                    })
+                }).collect();
 
-            // Print AS path
-            println!("AS Path: {}", result.as_path_str());
-            println!("AS Transitions: {}", result.as_transitions);
-            println!();
+                let json = serde_json::json!({
+                    "target": result.target,
+                    "target_ip": result.target_ip.to_string(),
+                    "abds": {
+                        "score": result.abds.score,
+                        "interpretation": result.abds.interpretation.to_string(),
+                        "total_divergent": result.abds.total_divergent,
+                        "at_boundary": result.abds.at_boundary,
+                        "intra_as": result.abds.intra_as,
+                        "unknown": result.abds.unknown,
+                    },
+                    "primary_cause": result.primary_cause.to_string(),
+                    "first_divergence_hop": result.first_divergence_hop,
+                    "as_path": result.as_path,
+                    "as_transitions": result.as_transitions,
+                    "total_time_ms": result.total_time.as_secs_f64() * 1000.0,
+                    "hops": hops_json,
+                    "summary": result.summary(),
+                });
+                println!("{json}");
+            } else {
+                println!("BGP-Correlated Protocol Divergence: {} ({})", target, result.target_ip);
+                println!();
 
-            // Print header
-            println!("{:>3} {:^15} {:^8} {:^25} {:>10}", "Hop", "IP", "ASN", "AS Name", "Status");
-            println!("{}", "-".repeat(70));
+                println!("AS Path: {}", result.as_path_str());
+                println!("AS Transitions: {}", result.as_transitions);
+                println!();
 
-            // Print each hop
-            for hop in &result.hops {
-                let ip = hop.addr.map(|a| a.to_string()).unwrap_or_else(|| "*".to_string());
-                let asn = hop.asn().map(|a| format!("AS{}", a)).unwrap_or_else(|| "-".to_string());
-                let as_name = hop.asn_info.as_ref()
-                    .and_then(|i| i.as_name.as_ref())
-                    .map(|s| if s.len() > 22 { format!("{}...", &s[..22]) } else { s.clone() })
-                    .unwrap_or_else(|| "-".to_string());
+                println!("{:>3} {:^15} {:^8} {:^25} {:>10}", "Hop", "IP", "ASN", "AS Name", "Status");
+                println!("{}", "-".repeat(70));
 
-                let status = if hop.has_divergence {
-                    if hop.is_as_boundary {
-                        "⚠ AS-BOUND"
+                for hop in &result.hops {
+                    let ip = hop.addr.map(|a| a.to_string()).unwrap_or_else(|| "*".to_string());
+                    let asn = hop.asn().map(|a| format!("AS{a}")).unwrap_or_else(|| "-".to_string());
+                    let as_name = hop.asn_info.as_ref()
+                        .and_then(|i| i.as_name.as_ref())
+                        .map(|s| if s.len() > 22 { format!("{}...", &s[..22]) } else { s.clone() })
+                        .unwrap_or_else(|| "-".to_string());
+
+                    let status = if hop.has_divergence {
+                        if hop.is_as_boundary { "⚠ AS-BOUND" } else { "⚠ INTRA-AS" }
+                    } else if hop.is_as_boundary {
+                        "→ boundary"
                     } else {
-                        "⚠ INTRA-AS"
-                    }
-                } else if hop.is_as_boundary {
-                    "→ boundary"
-                } else {
-                    "✓"
-                };
+                        "✓"
+                    };
 
-                println!("{:>3} {:^15} {:^8} {:^25} {:>10}", hop.ttl, ip, asn, as_name, status);
+                    println!("{:>3} {:^15} {:^8} {:^25} {:>10}", hop.ttl, ip, asn, as_name, status);
+                }
+
+                println!();
+                println!("AS-Boundary Divergence Score (ABDS):");
+                println!("  Total divergent hops: {}", result.abds.total_divergent);
+                println!("  At AS boundary:       {}", result.abds.at_boundary);
+                println!("  Within AS (intra-AS): {}", result.abds.intra_as);
+                println!("  Unknown location:     {}", result.abds.unknown);
+                println!("  ABDS Score:           {:.2}", result.abds.score);
+                println!("  Interpretation:       {}", result.abds.interpretation);
+
+                println!();
+                println!("Primary Cause: {}", result.primary_cause);
+                println!();
+                println!("Summary: {}", result.summary());
+                println!("Total time: {:.2}s", result.total_time.as_secs_f64());
             }
-
-            println!();
-            println!("AS-Boundary Divergence Score (ABDS):");
-            println!("  Total divergent hops: {}", result.abds.total_divergent);
-            println!("  At AS boundary:       {}", result.abds.at_boundary);
-            println!("  Within AS (intra-AS): {}", result.abds.intra_as);
-            println!("  Unknown location:     {}", result.abds.unknown);
-            println!("  ABDS Score:           {:.2}", result.abds.score);
-            println!("  Interpretation:       {}", result.abds.interpretation);
-
-            println!();
-            println!("Primary Cause: {}", result.primary_cause);
-            println!();
-            println!("Summary: {}", result.summary());
-            println!("Total time: {:.2}s", result.total_time.as_secs_f64());
         }
     }
 

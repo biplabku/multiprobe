@@ -1,6 +1,6 @@
 [package]
 name = "multiprobe"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2021"
 authors = ["Biplab Das <bdas@paloaltonetworks.com>"]
 description = "Multi-protocol network probing with BGP-correlated divergence analysis, AS-Boundary Divergence Score (ABDS), Protocol Divergence Localization, Paris Traceroute, and path analytics"
@@ -26,6 +26,7 @@ libc = "0.2"
 
 # CLI dependencies (optional, enabled by default for binary)
 clap = { version = "4", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -33,7 +34,7 @@ tracing-subscriber = "0.3"
 
 [features]
 default = ["cli"]
-cli = ["dep:clap"]
+cli = ["dep:clap", "dep:serde_json"]
 
 [[bin]]
 name = "multiprobe"

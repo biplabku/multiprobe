@@ -11,7 +11,6 @@
 //! https://doi.org/10.1145/1177080.1177100
 
 use std::collections::HashMap;
-use std::mem;
 use std::mem::MaybeUninit;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::{Duration, Instant};
@@ -576,9 +575,9 @@ fn probe_udp_unprivileged_sync(
     #[cfg(not(target_os = "linux"))]
     {
         let _ = (target, ttl, timeout, flow_id);
-        return Err(Error::InvalidTarget(
+        Err(Error::InvalidTarget(
             "UdpUnprivileged mode requires Linux (uses IP_RECVERR / MSG_ERRQUEUE)".to_string(),
-        ));
+        ))
     }
 
     #[cfg(target_os = "linux")]
