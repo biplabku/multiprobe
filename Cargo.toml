@@ -1,12 +1,12 @@
 [package]
 name = "multiprobe"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2021"
 authors = ["Biplab Das <bdas@paloaltonetworks.com>"]
 description = "Multi-protocol network probing with BGP-correlated divergence analysis, AS-Boundary Divergence Score (ABDS), Protocol Divergence Localization, Paris Traceroute, and path analytics"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/biplabku/multiprobe"
-keywords = ["network", "traceroute", "bgp", "asn", "diagnostics"]
+keywords = ["network", "traceroute", "paris-traceroute", "bgp", "diagnostics"]
 categories = ["network-programming", "asynchronous"]
 readme = "README.md"
 exclude = ["LAUNCH_POSTS.md", "GITHUB_ISSUES.md", "METRICS_TRACKING.md", "*.log"]
